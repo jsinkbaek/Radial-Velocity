@@ -8,7 +8,6 @@ def project1_txtload(fileref):
     with open(os.path.join('Datafiles', fileref+'.txt'), 'r') as f:
         references = []
         for line in f:
-            print(line)
             references.append(line.split()[0])
 
     for i in range(0, len(references)):
@@ -33,11 +32,12 @@ def project1_txtload(fileref):
 
 def cross_correlate(a, b, spacing=None, plot=True):
     # Expects uniform and same spacing for a and b, or that spacing is calculated outside the function
-    a = 1-a
-    b = 1-b
+    a = np.mean(a)-a
+    b = np.mean(b)-b
     steps = None
     result = np.correlate(a, b, mode='same')
     result = result/np.max(result)
+
     if spacing is not None:
         steps = np.linspace(-len(result)//2 * spacing, len(result)//2 * spacing, len(result))
     if plot is True and spacing is not None:
@@ -46,6 +46,7 @@ def cross_correlate(a, b, spacing=None, plot=True):
     elif plot is True:
         plt.plot(result)
         plt.show()
+
     return result, steps
 
 
@@ -53,6 +54,5 @@ def interpol(xp, yp, x):
     y = np.zeros((len(yp[:, 0]), len(x)))
     for i in range(0, len(yp[:, 0])):
         y[i, :] = np.interp(x, xp[i, :], yp[i, :])
-        print(i)
     return y
 
