@@ -2,6 +2,7 @@ import radial_velocity_functions as rf
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.constants as scc
+from detect_peaks import detect_peaks
 
 plt.rcParams.update({'font.size': 22})  # Changes font size on all plots
 
@@ -26,18 +27,68 @@ wl_shift = wl_intp - wl_intp[len(wl_intp)//2]
 for i in range(0, len(corr[:, 0])):
     corr[i, :] = rf.cross_correlate(data_intp[i, :], data_intp[-1, :], plot=False)[0]
 
+plt.figure()
 plt.plot(wl_shift, corr[0, :])
 plt.xlabel('Wavelength shift [Å]')
 plt.ylabel('Normalized cross correlation')
 plt.xlim([-10, 10])
-plt.show()
+plt.show(block=False)
 
 # Velocity shift
 v_shift = np.linspace(-step_amnt//2, step_amnt//2, step_amnt) * deltav
 
-plt.plot(v_shift, corr[0, :])
+peak_indx = []
+for i in range(0, len(corr[:, 0])-1):
+    peak_indx.append(detect_peaks(corr[i, :], mph=0.2))
+
+
+indx_max = np.empty((len(corr[:, 0])-1, ))
+indx_min = np.empty((len(corr[:, 0])-1, ))
+v_pmax = np.empty((len(corr[:, 0])-1, ))
+v_pmin = np.empty((len(corr[:, 0])-1, ))
+pmax = np.empty((len(corr[:, 0])-1, ))
+pmin = np.empty((len(corr[:, 0])-1, ))
+indx_max[:] = np.nan
+indx_min[:] = np.nan
+v_pmax[:] = np.nan
+v_pmin[:] = np.nan
+pmax[:] = np.nan
+pmin[:] = np.nan
+
+
+for i in range(0, len(indx_max)):
+    indx_max[i] = np.argmax(corr[i, peak_indx[i]])
+    v_pmax[i] = v_shift[peak_indx[i]][int(indx_max[i])]
+    pmax[i] = corr[i, peak_indx[i][int(indx_max[i])]]
+    if len(corr[i, peak_indx[i]]) == 1:
+        pass
+    else:
+        indx_min[i] = np.argmin(corr[i, peak_indx[i]])
+        v_pmin[i] = v_shift[peak_indx[i]][int(indx_min[i])]
+        pmin[i] = corr[i, peak_indx[i][int(indx_min[i])]]
+
+plt.figure()
+for i in range(0, len(indx_max)):
+    plt.plot(v_shift, corr[i, :])
 plt.xlabel('Radial velocity shift [km/s]')
 plt.ylabel('Normalized cross correlation')
-plt.xlim([-250, 250])
-plt.show()
+plt.plot(v_pmax, pmax, 'b*')
+plt.plot(v_pmin, pmin, 'r*')
+plt.xlim([-200, 100])
+plt.show(block=False)
 
+sort_indx = np.argsort(bjd)
+bjd_sort = bjd[sort_indx]
+v_pmax_sort = (v_pmax+bar_rvc)[sort_indx]
+v_pmin_sort = (v_pmin+bar_rvc)[sort_indx]
+
+plt.figure()
+plt.plot(bjd_sort, v_pmax_sort, 'r*', bjd_sort, v_pmax_sort, 'r',
+         bjd_sort, v_pmin_sort, 'b*', bjd_sort, v_pmin_sort, 'b')
+plt.show(block=False)
+
+v_ratio = v_pmax_sort / v_pmin_sort
+
+plt.figure()
+plt.plot(bjd_sort, v_ratio, 'b', bjd_sort, v_ratio, 'r*')
+plt.show()
