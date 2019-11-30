@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.constants as scc
 from detect_peaks import detect_peaks
-from scipy.optimize import curve_fit
 import lmfit
 
 
@@ -93,56 +92,72 @@ plt.show(block=False)
 
 # # Phaseplot
 pguess = np.mean([56524.9-56513.8, 56524.6-56513.7])
-freq_guess = 1/pguess
+
 # rf.phaseplot(v_pmax_sort, bjd_sort, v_pmin_sort, bjd_sort, pguess=pguess)
 # plt.close()
+
+# # Sine fitting to data
+
+# Prepare fit x axis data and initial guesses
+freq_guess = 1/pguess
 t_pmax = bjd_sort-bjd_sort[0]
 t_pmin = bjd_sort-bjd_sort[0]
-# t_pmin = np.delete(bjd_sort, np.argwhere(np.isnan(v_pmin_sort))) - bjd_sort[0]
-# v_pmin_sort = np.delete(v_pmin_sort, np.argwhere(np.isnan(v_pmin_sort)))
 system_peaks = np.append(v_pmax_sort, v_pmin_sort)
-system_mean = np.mean(system_peaks)
+system_mean_guess = np.mean(system_peaks)
 
-
-smodel = lmfit.Model(rf.sine_dstar)
+# Make fit model and set initial values
+print('')
+smodel = lmfit.Model(rf.sine_const)
 print('parameter names: {}'.format(smodel.param_names))
-print('independent variables: {}'.format(smodel.independent_vars))
-params = smodel.make_params(a=50, b=50, freq=freq_guess, phase=1, const=system_mean)
+params = smodel.make_params(a=50, freq=freq_guess, phase=1, const=system_mean_guess)
 params['a'].set(min=0, max=100)
-params['b'].set(min=0, max=100)
-params['freq'].set(min=0.5*freq_guess, max=2*freq_guess)
-params['phase'].set(min=-np.pi, max=np.pi)
-params['const'].set(min=-100, max=0)
-# print(params)
-# print(params['freq'])
+params['freq'].set(min=0.1*freq_guess, max=3*freq_guess)
+params['phase'].set(min=0, max=2*np.pi)
+params['const'].set(min=-200, max=0)
+print('')
 
-# fitres_max = smodel.fit(v_pmax_sort, x=t_pmax, a=50, freq=freq_guess, phase=1, const=system_mean)
-# popt_pmax = fitres_max.best_values
-# fitres_min = smodel.fit(v_pmin_sort, x=t_pmin, a=50, freq=freq_guess, phase=1, const=system_mean)
-# popt_pmin = fitres_min.best_values
-fitres = smodel.fit(v_pmax_sort+v_pmin_sort, params, x=t_pmax)
-fit_vals = fitres.best_values
-fit_a, fit_b, fit_freq, fit_phase, fit_const = fit_vals['a'], fit_vals['b'], fit_vals['freq'], fit_vals['phase'], \
-                                               fit_vals['const']
-print(fit_vals)
-print(fit_a, fit_b)
+# Fit sine model to one star
+params['freq'].set(value=freq_guess, vary=True)
+params['phase'].set(value=1, vary=True)
+fit1 = smodel.fit(v_pmin_sort, params, x=t_pmin)
+fit1_vals = fit1.best_values
+fit1_a, fit1_freq, fit1_phase, fit1_const = fit1_vals['a'], fit1_vals['freq'], fit1_vals['phase'], fit1_vals['const']
+print('fit1 report')
+print(fit1.fit_report(show_correl=False))
+print('')
+print('')
 
-plt.figure()
+# Fit sine model to other star using restrictions previous fit
+params['freq'].set(value=fit1_freq, vary=False)  # Make cyclic frequency the same as first fit
+params['phase'].set(value=fit1_phase + np.pi, vary=False)  # Make phase exactly opposite the first fit
+fit2 = smodel.fit(v_pmax_sort, params, x=t_pmax)
+fit2_vals = fit2.best_values
+fit2_a, fit2_freq, fit2_phase, fit2_const = fit2_vals['a'], fit2_vals['freq'], fit2_vals['phase'], fit2_vals['const']
+print('fit2 report')
+print(fit2.fit_report(show_correl=False))
+
+
+# Construct fit curves
 t_fit = np.linspace(bjd_sort[0], bjd_sort[-1], 500000) - bjd_sort[0]
-fit_pmax = rf.sine_const(t_fit, fit_a, fit_freq, fit_phase, fit_const)
-fit_pmin = rf.sine_const(t_fit, fit_b, fit_freq, fit_phase+np.pi, fit_const)
-plt.plot(t_pmax, v_pmax_sort, 'r*', t_fit, fit_pmax, 'r--', linewidth=0.5)
-plt.plot(t_pmin, v_pmin_sort, 'b*', t_fit, fit_pmin, 'b--', linewidth=0.5)
-fit_tot = rf.sine_dstar(t_fit, fit_a, fit_b, fit_freq, fit_phase, fit_const)
+fit1_line = rf.sine_const(t_fit, fit1_a, fit1_freq, fit1_phase, fit1_const)
+fit2_line = rf.sine_const(t_fit, fit2_a, fit2_freq, fit2_phase, fit2_const)
 
-crossings = detect_peaks((fit_pmax-fit_pmin)**2, valley=True)
-# plt.plot(t_fit[crossings], fit_pmax[crossings], 'k*')
-# plt.plot(t_fit[crossings], fit_pmin[crossings], 'k*')
-# print(((fit_pmax-fit_pmin)**2)[crossings])
-# print(np.std(((fit_pmax-fit_pmin)**2)[crossings]))
-plt.show(block=False)
-
+# Plot fit with data
 plt.figure()
-plt.plot(t_pmax, v_pmax_sort+v_pmin_sort, '*')
-plt.plot(t_fit, fit_tot)
+plt.plot(t_pmax, v_pmax_sort, 'r*', t_fit, fit2_line, 'r--', linewidth=0.5)
+plt.plot(t_pmin, v_pmin_sort, 'b*', t_fit, fit1_line, 'b--', linewidth=0.5)
+
+crossings = detect_peaks((fit1_line - fit2_line) ** 2, valley=True)
+plt.plot(t_fit[crossings], fit1_line[crossings], 'k*')
+plt.plot(t_fit[crossings], fit2_line[crossings], 'k*')
+print(' ')
+print('Standard deviation from 0 at closest value crossings', np.std(((fit1_line-fit2_line)**2)[crossings]))
 plt.show(block=True)
+
+y_crossings = np.append(fit1_line[crossings], fit2_line[crossings])
+system_mean = np.mean(y_crossings)
+print('y_crossings')
+print(y_crossings)
+print('system mean velocity [km/s]', system_mean)
+print('')
+

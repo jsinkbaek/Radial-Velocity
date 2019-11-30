@@ -104,4 +104,4 @@ def sine_const(x, a, freq, phase, const):
 
 
 def sine_dstar(x, a, b, freq, phase, const):
-    return a*np.sin(2*np.pi*x*freq + phase) + b*np.sin(2*np.pi*x*freq + phase + np.pi) + 2*const
+    return a*np.sin(2*np.pi*x*freq + phase) + b*np.sin(2*np.pi*x*freq + phase + np.pi) + const
