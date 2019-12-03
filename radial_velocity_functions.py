@@ -103,5 +103,5 @@ def sine_const(x, a, freq, phase, const):
     return a*np.sin(2*np.pi*x*freq + phase) + const
 
 
-def sine_dstar(x, a, b, freq, phase, const):
-    return a*np.sin(2*np.pi*x*freq + phase) + b*np.sin(2*np.pi*x*freq + phase + np.pi) + const
+def rv_func(x, k, e, freq, phase, const):
+    return k * (e*np.cos(phase) + np.cos(2*np.pi*freq*x + phase)) + const

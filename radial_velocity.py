@@ -84,11 +84,6 @@ bjd_sort = bjd[sort_indx]
 v_pmax_sort = (v_pmax+bar_rvc)[sort_indx]
 v_pmin_sort = (v_pmin+bar_rvc)[sort_indx]
 
-plt.figure()
-plt.plot(bjd_sort, v_pmax_sort, 'r*', bjd_sort, v_pmax_sort, 'r',
-         bjd_sort, v_pmin_sort, 'b*', bjd_sort, v_pmin_sort, 'b')
-plt.show(block=False)
-
 
 # # Phaseplot
 pguess = np.mean([56524.9-56513.8, 56524.6-56513.7])
@@ -105,21 +100,21 @@ t_pmin = bjd_sort-bjd_sort[0]
 system_peaks = np.append(v_pmax_sort, v_pmin_sort)
 system_mean_guess = np.mean(system_peaks)
 
-# Make fit model and set initial values
+# Make sine fit model and set initial values
 print('')
 smodel = lmfit.Model(rf.sine_const)
 print('parameter names: {}'.format(smodel.param_names))
-params = smodel.make_params(a=50, freq=freq_guess, phase=1, const=system_mean_guess)
-params['a'].set(min=0, max=100)
-params['freq'].set(min=0.1*freq_guess, max=3*freq_guess)
-params['phase'].set(min=0, max=2*np.pi)
-params['const'].set(min=-200, max=0)
+params_s = smodel.make_params(a=50, freq=freq_guess, phase=1, const=system_mean_guess)
+params_s['a'].set(min=0, max=100)
+params_s['freq'].set(min=0.1 * freq_guess, max=3 * freq_guess)
+params_s['phase'].set(min=0, max=2 * np.pi)
+params_s['const'].set(min=-200, max=0)
 print('')
 
 # Fit sine model to one star
-params['freq'].set(value=freq_guess, vary=True)
-params['phase'].set(value=1, vary=True)
-fit1 = smodel.fit(v_pmin_sort, params, x=t_pmin)
+params_s['freq'].set(value=freq_guess, vary=True)
+params_s['phase'].set(value=1, vary=True)
+fit1 = smodel.fit(v_pmin_sort, params_s, x=t_pmin)
 fit1_vals = fit1.best_values
 fit1_a, fit1_freq, fit1_phase, fit1_const = fit1_vals['a'], fit1_vals['freq'], fit1_vals['phase'], fit1_vals['const']
 print('fit1 report')
@@ -128,36 +123,107 @@ print('')
 print('')
 
 # Fit sine model to other star using restrictions previous fit
-params['freq'].set(value=fit1_freq, vary=False)  # Make cyclic frequency the same as first fit
-params['phase'].set(value=fit1_phase + np.pi, vary=False)  # Make phase exactly opposite the first fit
-fit2 = smodel.fit(v_pmax_sort, params, x=t_pmax)
+params_s['freq'].set(value=fit1_freq, vary=False)  # Make cyclic frequency the same as first fit
+params_s['phase'].set(value=fit1_phase + np.pi, vary=False)  # Make phase exactly opposite the first fit
+fit2 = smodel.fit(v_pmax_sort, params_s, x=t_pmax)
 fit2_vals = fit2.best_values
 fit2_a, fit2_freq, fit2_phase, fit2_const = fit2_vals['a'], fit2_vals['freq'], fit2_vals['phase'], fit2_vals['const']
 print('fit2 report')
 print(fit2.fit_report(show_correl=False))
+print('')
+print('')
+
+# # Generalized radial velocity function fitting to data
+
+# Make generalized radial velocity fitting model
+rvmodel = lmfit.Model(rf.rv_func)
+params_rv = rvmodel.make_params(k=50, freq=freq_guess, phase=1, const=system_mean_guess, e=0.1)
+params_rv['k'].set(min=0, max=100)
+params_rv['freq'].set(min=0.1*freq_guess, max=3*freq_guess)
+params_rv['phase'].set(min=0, max=2*np.pi)
+params_rv['e'].set(min=0, max=0.999)
+print('')
+
+# Fit generalized radial velocity function to one star
+params_rv['freq'].set(value=freq_guess, vary=True)
+params_rv['phase'].set(value=1, vary=True)
+fit3 = rvmodel.fit(v_pmin_sort, params_rv, x=t_pmin)
+fit3_vals = fit3.best_values
+fit3_k, fit3_e, fit3_freq, fit3_phase, fit3_const = fit3_vals['k'], fit3_vals['e'], fit3_vals['freq'], \
+                                                    fit3_vals['phase'], fit3_vals['const']
+print('fit3_report')
+print(fit3.fit_report(show_correl=False))
+print('')
+print('')
+
+# Fit generalized rv model to other star using restrictions from previous fit
+params_rv['freq'].set(value=fit3_freq, vary=False)  # Make cyclic frequency the same as first fit
+params_rv['phase'].set(value=fit3_phase + np.pi, vary=False)  # Make phase exactly opposite the first fit
+params_rv['e'].set(value=fit3_e, vary=False)
+fit4 = rvmodel.fit(v_pmax_sort, params_rv, x=t_pmax)
+fit4_vals = fit4.best_values
+fit4_k, fit4_e, fit4_freq, fit4_phase, fit4_const = fit4_vals['k'], fit4_vals['e'], fit4_vals['freq'], \
+                                                    fit4_vals['phase'], fit4_vals['const']
+print('fit4_report')
+print(fit4.fit_report(show_correl=False))
 
 
-# Construct fit curves
+# # Construct fit curves
 t_fit = np.linspace(bjd_sort[0], bjd_sort[-1], 500000) - bjd_sort[0]
 fit1_line = rf.sine_const(t_fit, fit1_a, fit1_freq, fit1_phase, fit1_const)
 fit2_line = rf.sine_const(t_fit, fit2_a, fit2_freq, fit2_phase, fit2_const)
+fit3_line = rf.rv_func(t_fit, fit3_k, fit3_e, fit3_freq, fit3_phase, fit3_const)
+fit4_line = rf.rv_func(t_fit, fit4_k, fit4_e, fit4_freq, fit4_phase, fit4_const)
 
-# Plot fit with data
+plt.figure()
+plt.plot(fit4_line-fit2_line, 'r--', fit3_line-fit1_line, 'b--')
+plt.xlabel('Index')
+plt.ylabel('fit difference')
+plt.legend(['fit4-fit2', 'fit3-fit1'])
+plt.show(block=False)
+
+
+# # Plot fit with data
 plt.figure()
 plt.plot(t_pmax, v_pmax_sort, 'r*', t_fit, fit2_line, 'r--', linewidth=0.5)
 plt.plot(t_pmin, v_pmin_sort, 'b*', t_fit, fit1_line, 'b--', linewidth=0.5)
+plt.plot(t_fit, fit4_line, 'r--', linewidth=0.5)
+plt.plot(t_fit, fit3_line, 'b--', linewidth=0.5)
 
-crossings = detect_peaks((fit1_line - fit2_line) ** 2, valley=True)
-plt.plot(t_fit[crossings], fit1_line[crossings], 'k*')
-plt.plot(t_fit[crossings], fit2_line[crossings], 'k*')
+crossings = detect_peaks((fit3_line - fit4_line) ** 2, valley=True)
+plt.plot(t_fit[crossings], fit3_line[crossings], 'k*')
+plt.plot(t_fit[crossings], fit4_line[crossings], 'k*')
 print(' ')
-print('Standard deviation from 0 at closest value crossings', np.std(((fit1_line-fit2_line)**2)[crossings]))
+print('Standard deviation from 0 at closest value crossings', np.std(((fit3_line-fit4_line)**2)[crossings]))
 plt.show(block=True)
 
-y_crossings = np.append(fit1_line[crossings], fit2_line[crossings])
+y_crossings = np.append(fit3_line[crossings], fit4_line[crossings])
 system_mean = np.mean(y_crossings)
 print('y_crossings')
 print(y_crossings)
 print('system mean velocity [km/s]', system_mean)
 print('')
 
+
+# Mass ratio calculation
+e = fit3_e  # Assumed by fitting a regular sine curve to radial velocity
+k1 = (np.max(fit3_line)-np.min(fit3_line))/2  # km/s, could also use fit amplitude instead
+k2 = (np.max(fit4_line)-np.min(fit4_line))/2  # km/s
+k = k1+k2
+
+if e != 0:
+    ecosw1 = ((np.max(fit3_line) + np.min(fit4_line)) / 2 - system_mean) / k1
+    print('ecosw1', ecosw1)
+    print('e*cos(phase)', e*np.cos(fit3_phase))
+    print('ecosw1/(e*cos(phase))', ecosw1/(e*np.cos(fit3_phase)))
+
+m_ratio = k2/k1  # m_ratio = m1/m2
+m_fitratio = fit4_k/fit3_k
+
+rv_period = 1/fit1_freq * 86400  # radial velocity period in seconds
+m_sumi = k**3 * rv_period * (1-e**2)**(3/2) / (8 * np.pi**3)  # m_sumi = (M1+M2)*sin^3(inclination)
+
+m_sun = 1.989*10**30  # kg
+
+print('m_ratio', m_ratio, 'm_fitratio', m_fitratio)
+print('m_sumi in solar masses', m_sumi)
