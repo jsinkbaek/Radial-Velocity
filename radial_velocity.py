@@ -195,6 +195,9 @@ plt.plot(t_fit[crossings], fit3_line[crossings], 'k*')
 plt.plot(t_fit[crossings], fit4_line[crossings], 'k*')
 print(' ')
 print('Standard deviation from 0 at closest value crossings', np.std(((fit3_line-fit4_line)**2)[crossings]))
+
+print('period1', 1/fit1_freq)
+print('period2', 1/fit3_freq)
 plt.show(block=True)
 
 y_crossings = np.append(fit3_line[crossings], fit4_line[crossings])
@@ -211,6 +214,8 @@ k1 = (np.max(fit3_line)-np.min(fit3_line))/2  # km/s, could also use fit amplitu
 k2 = (np.max(fit4_line)-np.min(fit4_line))/2  # km/s
 k = k1+k2
 
+k = 0.2108 * k  # AU/year
+
 if e != 0:
     ecosw1 = ((np.max(fit3_line) + np.min(fit4_line)) / 2 - system_mean) / k1
     print('ecosw1', ecosw1)
@@ -220,10 +225,17 @@ if e != 0:
 m_ratio = k2/k1  # m_ratio = m1/m2
 m_fitratio = fit4_k/fit3_k
 
-rv_period = 1/fit1_freq * 86400  # radial velocity period in seconds
+rv_period = 1/fit1_freq * 0.00274  # radial velocity period in years
 m_sumi = k**3 * rv_period * (1-e**2)**(3/2) / (8 * np.pi**3)  # m_sumi = (M1+M2)*sin^3(inclination)
 
 m_sun = 1.989*10**30  # kg
 
 print('m_ratio', m_ratio, 'm_fitratio', m_fitratio)
 print('m_sumi in solar masses', m_sumi)
+
+m1_min = k**3 * rv_period * (1-e**2)**(3/2) / (8 * np.pi**3 * (1+k1/k2))
+m2_min = k**3 * rv_period * (1-e**2)**(3/2) / (8 * np.pi**3 * (1+k2/k1))
+
+print('m1_min', m1_min)
+print('m2_min', m2_min)
+
